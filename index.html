@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Tumo Astana — Ориентация</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: system-ui, sans-serif; background: #f5f0eb; min-height: 100vh; }
+  .game-header { text-align: center; padding: 2rem 1rem 1rem; }
+  .game-header h1 { font-size: 22px; font-weight: 600; color: #1a1a1a; margin-bottom: 6px; }
+  .game-header p { font-size: 14px; color: #666; }
+  .progress-wrap { padding: 0 1rem; margin-bottom: 0.5rem; }
+  .progress-bar { height: 4px; background: #ddd; border-radius: 2px; }
+  .progress-fill { height: 100%; background: #C06DC7; border-radius: 2px; transition: width 0.4s ease; }
+  .progress-label { text-align: center; font-size: 12px; color: #888; margin: 6px 0 1rem; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(90px, 1fr)); gap: 10px; padding: 0 1rem 2rem; max-width: 900px; margin: 0 auto; }
+  .card-wrap { perspective: 600px; height: 84px; cursor: pointer; }
+  .card-inner { width: 100%; height: 100%; position: relative; transform-style: preserve-3d; transition: transform 0.5s cubic-bezier(.4,0,.2,1); }
+  .card-wrap.flipped .card-inner { transform: rotateY(180deg); }
+  .card-face { position: absolute; inset: 0; border-radius: 12px; backface-visibility: hidden; display: flex; align-items: center; justify-content: center; }
+  .card-front { background: #C06DC7; box-shadow: 0 2px 8px rgba(192,109,199,0.3); }
+  .card-num { font-size: 24px; font-weight: 600; color: white; }
+  .card-back { background: white; transform: rotateY(180deg); padding: 6px; border: 1px solid #e8e8e8; }
+  .card-q-short { font-size: 9.5px; line-height: 1.35; color: #333; text-align: center; }
+  .card-wrap.answered .card-front { background: #4a8c28; box-shadow: 0 2px 8px rgba(74,140,40,0.3); }
+  .modal-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.55); z-index: 100; align-items: center; justify-content: center; padding: 1rem; }
+  .modal-overlay.open { display: flex; }
+  .modal { background: white; border-radius: 20px; padding: 2rem 1.75rem; max-width: 500px; width: 100%; position: relative; }
+  .modal-num { font-size: 13px; color: #C06DC7; font-weight: 600; margin-bottom: 0.5rem; letter-spacing: 0.03em; }
+  .modal-q { font-size: 24px; font-weight: 600; color: #1a1a1a; line-height: 1.35; margin-bottom: 1.75rem; }
+  .modal-close { position: absolute; top: 1rem; right: 1rem; background: #f0f0f0; border: none; border-radius: 50%; width: 32px; height: 32px; cursor: pointer; font-size: 16px; color: #555; display: flex; align-items: center; justify-content: center; }
+  .modal-close:hover { background: #e0e0e0; }
+  .modal-nav { display: flex; gap: 8px; justify-content: flex-end; }
+  .modal-nav button { padding: 10px 18px; border-radius: 10px; border: 1px solid #ddd; background: #f5f5f5; color: #333; font-size: 14px; cursor: pointer; font-family: inherit; }
+  .modal-nav button.primary { background: #C06DC7; color: white; border-color: #C06DC7; font-weight: 600; }
+  .modal-nav button:hover { opacity: 0.85; }
+  .reset-btn { display: block; margin: 0 auto 2rem; padding: 8px 20px; border-radius: 8px; border: 1px solid #ddd; background: white; color: #888; font-size: 13px; cursor: pointer; font-family: inherit; }
+  .reset-btn:hover { background: #f0f0f0; }
+</style>
+</head>
+<body>
+
+<div class="game-header">
+  <h1>Tumo Astana</h1>
+  <p>Нажми на карточку, чтобы открыть вопрос</p>
+</div>
+<div class="progress-wrap">
+  <div class="progress-bar"><div class="progress-fill" id="pbar" style="width:0%"></div></div>
+</div>
+<div class="progress-label" id="plabel">0 из 32 отвечено</div>
+
+<div class="grid" id="grid"></div>
+<button class="reset-btn" onclick="resetAll()">↺ Сбросить всё</button>
+
+<div class="modal-overlay" id="modal" onclick="closeIfOverlay(event)">
+  <div class="modal">
+    <button class="modal-close" onclick="closeModal()">✕</button>
+    <div class="modal-num" id="mnum"></div>
+    <div class="modal-q" id="mq"></div>
+    <div class="modal-nav">
+      <button class="primary" onclick="markDone()">Ответили ✓</button>
+      <button onclick="closeModal()">Закрыть</button>
+    </div>
+  </div>
+</div>
+
+<script>
+const questions = [
+  "Кем ты мечтаешь работать?",
+  "Какой работой ты совсем не хотел бы заниматься?",
+  "Если бы ты мог оказаться в любой точке мира прямо сейчас, куда бы ты отправился?",
+  "Какое место тебе нравится меньше всего?",
+  "Если бы у тебя была суперсила, какой она была бы?",
+  "Какие 3 вещи ты взял бы с собой на необитаемый остров?",
+  "Если бы ты мог мгновенно освоить один навык, что бы ты выбрал?",
+  "Кто твой любимый персонаж из мультфильма или фильма?",
+  "Есть ли у тебя любимая книга? Если да, почему?",
+  "В какие игры ты любишь играть?",
+  "Какая способность отличает тебя от других?",
+  "Какая из твоих способностей нравится тебе больше всего?",
+  "Какие навыки тебе хотелось бы развить?",
+  "Кто твои герои или люди, которые тебя вдохновляют, и почему?",
+  "Чем ты занимаешься в свободное время?",
+  "Когда ты наиболее творческий?",
+  "Когда тебе совсем не хватает вдохновения?",
+  "Что самое интересное и творческое, что тебе приходилось делать?",
+  "Что тебе нравится больше всего?",
+  "Какими компьютерными программами ты умеешь пользоваться?",
+  "Какие у тебя хобби?",
+  "В какой области ты хотел бы стать специалистом?",
+  "Какой твой любимый сериал или фильм?",
+  "Есть ли у тебя любимый художник или исполнитель? Если да, кто?",
+  "Тебе приходилось работать за компьютером? Если да, как долго?",
+  "Какой вид искусства тебя интересует?",
+  "Если бы ты мог создать видеоигру, какого жанра она была бы?",
+  "Что ты обычно фотографируешь на телефон?",
+  "Тебе когда-нибудь хотелось написать рассказ — или ты уже пишешь?",
+  "Что ты обычно делаешь, чтобы поднять себе настроение?",
+  "Если бы ты мог сконструировать робота, что бы он умел делать?",
+  "Как ты думаешь, что делает ученика хорошим?"
+];
+
+let answered = JSON.parse(localStorage.getItem('tumo_answered') || '[]');
+let currentCard = -1;
+const grid = document.getElementById('grid');
+
+function shortQ(q) { return q.length > 55 ? q.slice(0, 52) + '...' : q; }
+
+function renderGrid() {
+  grid.innerHTML = '';
+  questions.forEach((q, i) => {
+    const wrap = document.createElement('div');
+    wrap.className = 'card-wrap' + (answered.includes(i) ? ' flipped answered' : '');
+    wrap.innerHTML = `<div class="card-inner">
+      <div class="card-face card-front"><span class="card-num">${i+1}</span></div>
+      <div class="card-face card-back"><div class="card-q-short">${shortQ(q)}</div></div>
+    </div>`;
+    wrap.addEventListener('click', () => openCard(i));
+    grid.appendChild(wrap);
+  });
+  updateProgress();
+}
+
+function updateProgress() {
+  const pct = Math.round(answered.length / questions.length * 100);
+  document.getElementById('pbar').style.width = pct + '%';
+  document.getElementById('plabel').textContent = answered.length + ' из ' + questions.length + ' отвечено';
+}
+
+function openCard(i) {
+  currentCard = i;
+  document.getElementById('mnum').textContent = 'Карточка ' + (i + 1);
+  document.getElementById('mq').textContent = questions[i];
+  document.getElementById('modal').classList.add('open');
+  if (!answered.includes(i)) grid.children[i].classList.add('flipped');
+}
+
+function closeModal() { document.getElementById('modal').classList.remove('open'); }
+function closeIfOverlay(e) { if (e.target === document.getElementById('modal')) closeModal(); }
+
+function markDone() {
+  if (!answered.includes(currentCard)) {
+    answered.push(currentCard);
+    localStorage.setItem('tumo_answered', JSON.stringify(answered));
+    grid.children[currentCard].classList.add('answered');
+    updateProgress();
+  }
+  closeModal();
+}
+
+function resetAll() {
+  answered = [];
+  localStorage.removeItem('tumo_answered');
+  renderGrid();
+}
+
+renderGrid();
+</script>
+</body>
+</html>
