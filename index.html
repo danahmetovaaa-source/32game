@@ -136,7 +136,12 @@ function openCard(i) {
   if (!answered.includes(i)) grid.children[i].classList.add('flipped');
 }
 
-function closeModal() { document.getElementById('modal').classList.remove('open'); }
+function closeModal() {
+  document.getElementById('modal').classList.remove('open');
+  if (currentCard !== -1 && !answered.includes(currentCard)) {
+    grid.children[currentCard].classList.remove('flipped');
+  }
+}
 function closeIfOverlay(e) { if (e.target === document.getElementById('modal')) closeModal(); }
 
 function markDone() {
